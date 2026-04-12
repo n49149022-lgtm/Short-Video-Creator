@@ -1,0 +1,35 @@
+name: Фото товара → Shorts/Reel
+on:
+  workflow_dispatch:
+    inputs:
+      photo_url:
+        description: 'Ссылка на фото товара'
+        required: true
+      product_name:
+        description: 'Название продукта'
+        required: true
+
+jobs:
+  create-reel:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Установить FFmpeg
+      run: sudo apt update && sudo apt install -y ffmpeg espeak
+    
+    - name: Скачать фото
+      run: |
+        wget -O input/photo.jpg "${{ github.event.inputs.photo_url }}"
+        echo "${{ github.event.inputs.product_name }}" > input/product.txt
+    
+    - name: Сгенерировать Reel
+      run: |
+        pip install moviepy gtts
+        python generate.py
+    
+    - name: Артефакт
+      uses: actions/upload-artifact@v4
+      with:
+        name: product-reel-${{ github.run_number }}
+        path: output/*.mp4
