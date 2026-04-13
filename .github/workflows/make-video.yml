@@ -1,0 +1,74 @@
+name: Short-Video-Creator
+
+on:
+  workflow_dispatch:
+    inputs:
+      photo_url:
+        description: 'Ссылка на фото товара'
+        required: true
+      product_name:
+        description: 'Название товара (для текста на видео)'
+        required: true
+      review_text:
+        description: 'Короткий текст обзора (2-3 предложения)'
+        required: true
+
+jobs:
+  make-video:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install FFmpeg and dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg
+          pip install moviepy gtts pillow
+
+      - name: Download photo and generate video
+        run: |
+          python - <<EOF
+          import urllib.request
+          from PIL import Image
+          from moviepy import *
+          from gtts import gTTS
+
+          # Скачать фото
+          urllib.request.urlretrieve("${{ github.event.inputs.photo_url }}", "photo.jpg")
+
+          # Подготовить фото
+          img = Image.open("photo.jpg")
+          img = img.convert("RGB")
+          img.save("input.jpg")
+
+          # Озвучка
+          tts = gTTS("${{ github.event.inputs.review_text }}", lang='ru')
+          tts.save("voice.mp3")
+
+          # Создать видео
+          clip = ImageClip("input.jpg").resized(height=1920).with_duration(30)
+          audio_clip = AudioFileClip("voice.mp3").with_duration(clip.duration)
+
+          # Текст на видео
+          txt = TextClip(
+              text="${{ github.event.inputs.product_name }}",
+              font_size=70,
+              color='white',
+              font='/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'
+          ).with_duration(30).with_position(('center', 'center'))
+
+          # Склеить
+          final = CompositeVideoClip([clip, txt]).with_audio(audio_clip)
+          final.write_videofile("output.mp4", fps=24)
+          EOF
+
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: short-video
+          path: output.mp4
